@@ -1,0 +1,23 @@
+Configuração da Conta local do GIT:
+    git config --global user.name lipeDaltoe
+    git config --global user.email felipedaltoe9@gmail.com
+
+Criar Projeto:
+    npx create-expo-app@latest GuessOrDie --template blank
+
+Entrar na pasta do projeto:
+    cd GuessOrDie
+
+Assim que clonar o projeto:
+    npm i
+
+Resetar o template ao básico:
+    npm run reset-project
+
+Startar na web:
+    npx expo start --web
+
+Startar no android:
+    npx expo start --localhost --android
+
+npx expo install expo-image
