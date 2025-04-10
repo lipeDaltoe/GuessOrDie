@@ -58,7 +58,7 @@ export default function App() {
         keyboardType="numeric"
         value={chute}
         onChangeText={setChute}
-        onSubmitEditing={verificarChute} // 👈 Aqui é o segredo!
+        onSubmitEditing={verificarChute}
         returnKeyType="done"
       />
 
@@ -71,18 +71,43 @@ export default function App() {
         onPress={verificarChute}
         disabled={tentativas === 0 || mensagem.includes('acertou')}
       >
-        <Text style={styles.botaoTexto}>Arriscar</Text>
+        <Text style={styles.botaoTexto}>Arriscar?</Text>
       </TouchableOpacity>
-
 
       {dicas.length > 0 && (
         <View style={styles.dicasContainer}>
           <Text style={styles.dicasTitulo}></Text>
-          {dicas.map((dica, index) => (
-            <Text key={index} style={styles.dicaTexto}>
-              {dica}
-            </Text>
-          ))}
+          {dicas.map((dica, index) => {
+            let dicaFormatada;
+
+            if (dica.includes('maior')) {
+              const partes = dica.split('maior');
+              dicaFormatada = (
+                <>
+                  {partes[0]}
+                  <Text style={styles.maior}>maior</Text>
+                  {partes[1]}
+                </>
+              );
+            } else if (dica.includes('menor')) {
+              const partes = dica.split('menor');
+              dicaFormatada = (
+                <>
+                  {partes[0]}
+                  <Text style={styles.menor}>menor</Text>
+                  {partes[1]}
+                </>
+              );
+            } else {
+              dicaFormatada = dica;
+            }
+
+            return (
+              <Text key={index} style={styles.dicaTexto}>
+                {dicaFormatada}
+              </Text>
+            );
+          })}
         </View>
       )}
 
@@ -94,6 +119,8 @@ export default function App() {
         </TouchableOpacity>
       )}
     </View>
+
+
   );
 }
 
@@ -169,10 +196,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: 'center',
   },
-  
+
   botaoTexto: {
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  maior: {
+    color: '#00A8FF',
+    fontWeight: 'bold',
+  },
+  menor: {
+    color: '#FF78CB',
+    fontWeight: 'bold',
   },
 });
