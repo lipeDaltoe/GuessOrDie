@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Dimensions } from 'react-native';
+import { Audio } from 'expo-av';
 import {
   View,
   Text,
@@ -6,7 +8,9 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
+  Vibration,
   ImageBackground,
+  Animated,
 } from 'react-native';
 
 export default function App() {
@@ -15,14 +19,66 @@ export default function App() {
   const [tentativas, setTentativas] = useState(5);
   const [mensagem, setMensagem] = useState('');
   const [dicas, setDicas] = useState([]);
+  const [erroFatal, setErroFatal] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [isRed, setIsRed] = useState(false);
+  const [somErro, setSomErro] = useState(null);
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const { width } = Dimensions.get('window');
+  const ALERT_WIDTH = width * 0.8;
 
   function gerarNumeroAleatorio() {
     return Math.floor(Math.random() * 101);
   }
 
+  async function tocarSomTenso() {
+    const { sound } = await Audio.Sound.createAsync(
+      require('./assets/suspense.mp3')
+    );
+    setSomErro(sound);
+    await sound.playAsync();
+  }
+
+  useEffect(() => {
+    if (erroFatal) {
+      Vibration.vibrate([0, 500, 500, 500, 500], true);
+      tocarSomTenso();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            Vibration.cancel();
+            setMensagem('☠️ ERRO FATAL: Você perdeu completamente!');
+            return 0;
+          }
+          return prev - 1;
+        });
+
+        setIsRed((prev) => !prev);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [erroFatal]);
+
   function verificarChute() {
     const chuteNumero = parseInt(chute);
-
     if (isNaN(chuteNumero) || chuteNumero < 0 || chuteNumero > 100) {
       Alert.alert('Entrada inválida', 'Digite um número entre 0 e 100.');
       return;
@@ -41,113 +97,138 @@ export default function App() {
       setDicas((prevDicas) => [...prevDicas, dica]);
 
       if (novasTentativas === 0) {
-        setMensagem(`❌ Você perdeu! O número era ${numeroCorreto}.`);
+        setErroFatal(true);
+        setMensagem('');
       }
     }
 
     setChute('');
   }
 
-  function reiniciarJogo() {
+  async function reiniciarJogo() {
     setNumeroCorreto(gerarNumeroAleatorio());
     setChute('');
     setTentativas(5);
     setMensagem('');
     setDicas([]);
+    setErroFatal(false);
+    setCountdown(5);
+    setIsRed(false);
+
+    if (somErro) {
+      await somErro.stopAsync();
+      await somErro.unloadAsync();
+    }
   }
+
+  const alertaFatalStyle = {
+    position: 'absolute',
+    top: '25%',
+    left: (width - ALERT_WIDTH) / 2,
+    width: ALERT_WIDTH,
+    height: '50%',
+    backgroundColor: 'rgba(255, 0, 0, 0.9)',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    elevation: 10,
+  };
 
   return (
     <ImageBackground
       source={require('./assets/background.jpg')}
-      style={styles.background}
+      style={[styles.container, isRed && styles.piscar]}
       resizeMode="cover"
     >
-      <View style={styles.container}>
-        <Text style={styles.titulo}>Guess Or Die</Text>
+      {erroFatal && (
+        <Animated.View style={[alertaFatalStyle, { opacity: fadeAnim }]}>
+          <Text style={styles.alertaTexto}>☠️ ERRO FATAL DETECTADO</Text>
+          <Text style={styles.alertaCountdown}>Falha crítica em: {countdown}...</Text>
+        </Animated.View>
+      )}
 
-        <TextInput
-          style={styles.input}
-          placeholder="Digite um número entre 0 e 100"
-          keyboardType="numeric"
-          value={chute}
-          onChangeText={setChute}
-          onSubmitEditing={verificarChute}
-          returnKeyType="done"
-          placeholderTextColor="#ccc"
-        />
+      <Text style={styles.titulo}>Guess Or Die</Text>
 
-        <Text style={styles.tentativasTexto}>
-          Tentativas restantes: {tentativas}
-        </Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Digite um número entre 0 e 100"
+        keyboardType="numeric"
+        value={chute}
+        onChangeText={setChute}
+        onSubmitEditing={verificarChute}
+        returnKeyType="done"
+        placeholderTextColor="#888"
+      />
 
-        <TouchableOpacity
-          style={styles.botao}
-          onPress={verificarChute}
-          disabled={tentativas === 0 || mensagem.includes('acertou')}
-        >
-          <Text style={styles.botaoTexto}>Arriscar?</Text>
-        </TouchableOpacity>
+      <Text style={styles.tentativasTexto}>
+        Tentativas restantes: {tentativas}
+      </Text>
 
-        {dicas.length > 0 && (
-          <View style={styles.dicasContainer}>
-            <Text style={styles.dicasTitulo}></Text>
-            {dicas.map((dica, index) => {
-              let dicaFormatada;
+      <TouchableOpacity
+        style={styles.botao}
+        onPress={verificarChute}
+        disabled={tentativas === 0 || mensagem.includes('acertou')}
+      >
+        <Text style={styles.botaoTexto}>Arriscar?</Text>
+      </TouchableOpacity>
 
-              if (dica.includes('maior')) {
-                const partes = dica.split('maior');
-                dicaFormatada = (
-                  <>
-                    {partes[0]}
-                    <Text style={styles.maior}>maior</Text>
-                    {partes[1]}
-                  </>
-                );
-              } else if (dica.includes('menor')) {
-                const partes = dica.split('menor');
-                dicaFormatada = (
-                  <>
-                    {partes[0]}
-                    <Text style={styles.menor}>menor</Text>
-                    {partes[1]}
-                  </>
-                );
-              } else {
-                dicaFormatada = dica;
-              }
+      {dicas.length > 0 && (
+        <View style={styles.dicasContainer}>
+          {dicas.map((dica, index) => {
+            let dicaFormatada;
 
-              return (
-                <Text key={index} style={styles.dicaTexto}>
-                  {dicaFormatada}
-                </Text>
+            if (dica.includes('maior')) {
+              const partes = dica.split('maior');
+              dicaFormatada = (
+                <>
+                  {partes[0]}
+                  <Text style={styles.maior}>maior</Text>
+                  {partes[1]}
+                </>
               );
-            })}
-          </View>
-        )}
+            } else if (dica.includes('menor')) {
+              const partes = dica.split('menor');
+              dicaFormatada = (
+                <>
+                  {partes[0]}
+                  <Text style={styles.menor}>menor</Text>
+                  {partes[1]}
+                </>
+              );
+            } else {
+              dicaFormatada = dica;
+            }
 
-        {mensagem !== '' && <Text style={styles.mensagem}>{mensagem}</Text>}
+            return (
+              <Text key={index} style={styles.dicaTexto}>
+                {dicaFormatada}
+              </Text>
+            );
+          })}
+        </View>
+      )}
 
-        {(tentativas === 0 || mensagem.includes('acertou')) && (
-          <TouchableOpacity style={styles.botao} onPress={reiniciarJogo}>
-            <Text style={styles.botaoTexto}>(⓿_⓿) Mais uma vez?</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {(tentativas === 0 || mensagem.includes('acertou')) && (
+        <TouchableOpacity style={styles.botao} onPress={reiniciarJogo}>
+          <Text style={styles.botaoTexto}>(⓿_⓿) Mais uma vez?</Text>
+        </TouchableOpacity>
+      )}
     </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    justifyContent: 'center',
-  },
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)', // Fundo semi-transparente por cima da imagem
+    backgroundColor: '#121212',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  piscar: {
+    backgroundColor: '#ff0000',
   },
   titulo: {
     fontSize: 24,
@@ -183,12 +264,6 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 20,
   },
-  dicasTitulo: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#ff4d4d',
-  },
   dicaTexto: {
     fontSize: 16,
     color: 'white',
@@ -219,5 +294,17 @@ const styles = StyleSheet.create({
   menor: {
     color: '#FF78CB',
     fontWeight: 'bold',
+  },
+  alertaTexto: {
+    fontSize: 20,
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  alertaCountdown: {
+    fontSize: 18,
+    color: 'white',
+    textAlign: 'center',
   },
 });
