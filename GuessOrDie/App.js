@@ -23,12 +23,13 @@ export default function App() {
   const [countdown, setCountdown] = useState(5);
   const [isRed, setIsRed] = useState(false);
   const [somErro, setSomErro] = useState(null);
+  const [somVitoria, setSomVitoria] = useState(null); // Novo
   const fadeAnim = useState(new Animated.Value(0))[0];
   const { width } = Dimensions.get('window');
   const ALERT_WIDTH = width * 0.8;
 
   function gerarNumeroAleatorio() {
-    return Math.floor(Math.random() * 101);
+    return Math.floor(Math.random() * 3) + 1;
   }
 
   async function tocarSomTenso() {
@@ -36,6 +37,14 @@ export default function App() {
       require('./assets/suspense.mp3')
     );
     setSomErro(sound);
+    await sound.playAsync();
+  }
+
+  async function tocarSomVitoria() {
+    const { sound } = await Audio.Sound.createAsync(
+      require('./assets/victory.mp3') // Adicione seu som aqui
+    );
+    setSomVitoria(sound);
     await sound.playAsync();
   }
 
@@ -85,7 +94,8 @@ export default function App() {
     }
 
     if (chuteNumero === numeroCorreto) {
-      setMensagem('Você escapou. Dessa vez');
+      setMensagem('🎉 Você escapou 🎉 Dessa vez...');
+      tocarSomVitoria();
     } else {
       const dica =
         chuteNumero < numeroCorreto
@@ -106,12 +116,14 @@ export default function App() {
   }
 
   async function reiniciarJogo() {
+    Vibration.cancel(); // <- mover aqui em cima, para interromper logo
+
+    setErroFatal(false);
     setNumeroCorreto(gerarNumeroAleatorio());
     setChute('');
     setTentativas(5);
     setMensagem('');
     setDicas([]);
-    setErroFatal(false);
     setCountdown(5);
     setIsRed(false);
 
@@ -119,7 +131,13 @@ export default function App() {
       await somErro.stopAsync();
       await somErro.unloadAsync();
     }
+
+    if (somVitoria) {
+      await somVitoria.stopAsync();
+      await somVitoria.unloadAsync();
+    }
   }
+
 
   const alertaFatalStyle = {
     position: 'absolute',
@@ -149,6 +167,13 @@ export default function App() {
         </Animated.View>
       )}
 
+      {/* Pop-up de vitória */}
+      {mensagem.includes('escapou') && (
+        <View style={styles.popup}>
+          <Text style={styles.popupTexto}>{mensagem}</Text>
+        </View>
+      )}
+
       <Text style={styles.titulo}>Guess Or Die</Text>
 
       <TextInput
@@ -169,7 +194,7 @@ export default function App() {
       <TouchableOpacity
         style={styles.botao}
         onPress={verificarChute}
-        disabled={tentativas === 0 || mensagem.includes('acertou')}
+        disabled={tentativas === 0 || mensagem.includes('escapou')}
       >
         <Text style={styles.botaoTexto}>Arriscar?</Text>
       </TouchableOpacity>
@@ -210,7 +235,7 @@ export default function App() {
         </View>
       )}
 
-      {(tentativas === 0 || mensagem.includes('acertou')) && (
+      {(tentativas === 0 || mensagem.includes('escapou')) && (
         <TouchableOpacity style={styles.botao} onPress={reiniciarJogo}>
           <Text style={styles.botaoTexto}>(⓿_⓿) Mais uma vez?</Text>
         </TouchableOpacity>
@@ -307,4 +332,20 @@ const styles = StyleSheet.create({
     color: 'white',
     textAlign: 'center',
   },
+  popup: {
+    position: 'absolute',
+    top: '40%',
+    backgroundColor: 'green',
+    padding: 50,
+    borderRadius: 10,
+    zIndex: 15,
+    elevation: 15,
+  },
+  popupTexto: {
+    color: '#00FFAA',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+
 });
